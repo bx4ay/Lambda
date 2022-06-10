@@ -8,10 +8,7 @@ app (L x m) n = subst n x m
     where
         subst :: Expr -> [Char] -> Expr -> Expr
         subst n x (V y) = if x == y then n else V y
-        subst n x (L y m)
-            | x == y = L x m
-            | free n y = (\ z -> L z $ subst n x $ subst (V z) y m) $ head $ filter (not . free n) $ (y ++) . show <$> [0 ..]
-            | otherwise = L y $ subst n x m
+        subst n x (L y m) = if x == y then L x m else (\ z -> L z $ subst n x $ subst (V z) y m) $ head $ filter (not . free n) $ (takeWhile isAlpha y ++) <$> "" : (show <$> [0 ..])
         subst n x (A m1 m2) = app (subst n x m1) $ subst n x m2
 
         free :: Expr -> [Char] -> Bool
