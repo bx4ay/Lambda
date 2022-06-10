@@ -53,4 +53,4 @@ main = do
             putStr "> "
             x <- getLine
             putStrLn $ parse x
-            main
+            f
