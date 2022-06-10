@@ -4,17 +4,14 @@ import System.Environment (getArgs)
 data Expr = V [Char] | L [Char] Expr | A Expr Expr
 
 app :: Expr -> Expr -> Expr
-app (L x m) n = subst n x m
+app (L x (V y)) n = if x == y then n else V y
+app (L x (L y m)) n = if x == y then L x m else (\ z -> L z $ app (L x $ app (L y m) (V z)) n) $ head $ filter (not . free n) $ (takeWhile isAlpha y ++) <$> "" : (show <$> [0 ..])
     where
-        subst :: Expr -> [Char] -> Expr -> Expr
-        subst n x (V y) = if x == y then n else V y
-        subst n x (L y m) = if x == y then L x m else (\ z -> L z $ subst n x $ subst (V z) y m) $ head $ filter (not . free n) $ (takeWhile isAlpha y ++) <$> "" : (show <$> [0 ..])
-        subst n x (A m1 m2) = app (subst n x m1) $ subst n x m2
-
         free :: Expr -> [Char] -> Bool
         free (V y) x = x == y
         free (L y m) x = x /= y && free m x
         free (A m1 m2) x = free m1 x || free m2 x
+app (L x (A m1 m2)) n = app (app (L x m1) n) $ app (L x m2) n
 app m1 m2 = A m1 m2
 
 parse :: [Char] -> [Char]
