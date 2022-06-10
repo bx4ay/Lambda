@@ -1,7 +1,7 @@
 import Data.Char (isAlpha, isAlphaNum)
 import System.Environment (getArgs)
 
-data Expr = V [Char] | L [Char] Expr | A Expr Expr deriving Show
+data Expr = V [Char] | L [Char] Expr | A Expr Expr
 
 app :: Expr -> Expr -> Expr
 app (L x m) n = subst n x m
@@ -17,8 +17,8 @@ app (L x m) n = subst n x m
         subst n x (A m1 m2) = app (subst n x m1) $ subst n x m2
 
         free :: [Char] -> Expr -> Bool
-        free x (V t) = x == t
-        free x (L t m) = x /= t && free x m
+        free x (V y) = x == y
+        free x (L y m) = x /= y && free x m
         free x (A m1 m2) = free x m1 || free x m2
 app m1 m2 = A m1 m2
 
