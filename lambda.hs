@@ -5,7 +5,7 @@ data Expr = V [Char] | L [Char] Expr | A Expr Expr
 
 app :: Expr -> Expr -> Expr
 app (L x (V y)) n = if x == y then n else V y
-app (L x (L y m)) n = if x == y then L x m else (\ z -> L z $ app (L x $ app (L y m) (V z)) n) $ head $ filter (not . free n) $ (takeWhile isAlpha y ++) <$> "" : (show <$> [0 ..])
+app (L x (L y m)) n = if x == y then L x m else (\ z -> L z $ app (L x $ app (L y m) $ V z) n) $ head $ filter (not . free n) $ (takeWhile isAlpha y ++) <$> "" : (show <$> [0 ..])
     where
         free :: Expr -> [Char] -> Bool
         free (V y) x = x == y
