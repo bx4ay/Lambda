@@ -5,7 +5,7 @@ import Text.Parsec.Language
 import Text.Parsec.String
 import Text.Parsec.Token
 
-data Expr = Id | P1 | P2 | Ev | V [Char] | C Expr Expr | P Expr Expr | L Expr
+data Expr = C Expr Expr | Id | P Expr Expr | P1 | P2 | L Expr | Ev | V [Char]
 
 eval :: Expr -> Expr
 eval (L x) = L $ eval x
@@ -43,27 +43,27 @@ parser = do
             L . lambda 0 s <$> expr)
 
         lambda :: Int -> [Char] -> Expr -> Expr
-        lambda i s (V t) | s == t = C P2 $ iterate (C P1) Id !! i
         lambda i s (C Ev (P x y)) = C Ev . P (lambda i s x) $ lambda i s y
         lambda i s (L x) = L $ lambda (i + 1) s x
+        lambda i s (V t) | s == t = C P2 $ iterate (C P1) Id !! i
         lambda _ _ x = x
 
 show' :: Expr -> [Char]
 show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . flip (:)) $ "" : map show [1 ..]) 0 x
     where
         show'' :: [[Char]] -> Int -> Expr -> [Char]
-        show'' l i (V s) = s
         show'' l i (C Ev (P x (C Ev y))) = show'' l i x ++ '(' : show'' l i (C Ev y) ++ ")"
-        show'' l i (C Ev (P x (L y))) = show'' l i x ++ show'' l i (L y)
+        show'' l i (C Ev (P x (L y))) = show'' l i x ++ '(' : show'' l i (L y) ++ ")"
         show'' l i (C Ev (P x y)) = show'' l i x ++ ' ' : show'' l i y
-        show'' l i (C _ x) = show'' l (i - 1) x
         show'' l i (L x) = '\\' : l !! i ++ '.' : show'' l (i + 1) x
+        show'' l i (V s) = s
+        show'' l i (C _ x) = show'' l (i - 1) x
         show'' l i x = l !! (i - 1)
 
         free :: Expr -> [[Char]]
-        free (V s) = [s]
         free (C Ev (P x y)) = free x `union` free y
         free (L x) = free x
+        free (V s) = [s]
         free _ = []
 
 main :: IO ()
