@@ -49,7 +49,7 @@ parser = do
         lambda _ _ x = x
 
 show' :: Expr -> [Char]
-show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . flip (:)) $ "" : map show [0 ..]) 0 x
+show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . flip (:)) $ "" : map show [1 ..]) 0 x
     where
         show'' :: [[Char]] -> Int -> Expr -> [Char]
         show'' l i (V s) = s
