@@ -1,5 +1,5 @@
 import Data.List
-import System.Environment (getArgs)
+import System.Environment
 import Text.Parsec
 import Text.Parsec.Language
 import Text.Parsec.String
@@ -68,11 +68,11 @@ show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . fl
 
 main :: IO ()
 main = do
-    [arg] <- getArgs
-    if null args then i else either print (putStrLn . show' . eval) . parse parser "" =<< readFile arg
+    args <- getArgs
+    if null args then i else either print (putStrLn . show' . eval) . parse parser "" =<< readFile (head args)
     where
         i :: IO ()
         i = do
             putStr "> "
             either print (putStrLn . show' . eval) . parse parser "" =<< getLine
-            f
+            i
