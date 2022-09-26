@@ -1,46 +1,78 @@
-import Data.Char (isAlpha, isAlphaNum)
+import Data.List
 import System.Environment (getArgs)
+import Text.Parsec
+import Text.Parsec.Language
+import Text.Parsec.String
+import Text.Parsec.Token
 
-data Expr = V [Char] | L [Char] Expr | A Expr Expr
+data Expr = Id | P1 | P2 | Ev | V [Char] | C Expr Expr | P Expr Expr | L Expr
 
-app :: Expr -> Expr -> Expr
-app (L x (V y)) n = if x == y then n else V y
-app (L x (L y m)) n = if x == y then L x m else (\ z -> L z $ app (L x $ app (L y m) $ V z) n) $ head $ filter (not . free n) $ (takeWhile isAlpha y ++) <$> "" : (show <$> [0 ..])
+eval :: Expr -> Expr
+eval (L x) = L $ eval x
+eval (C x y) = c (eval x) $ eval y
     where
-        free :: Expr -> [Char] -> Bool
-        free (V y) x = x == y
-        free (L y m) x = x /= y && free m x
-        free (A m1 m2) x = free m1 x || free m2 x
-app (L x (A m1 m2)) n = app (app (L x m1) n) $ app (L x m2) n
-app m1 m2 = A m1 m2
+        c :: Expr -> Expr -> Expr
+        c (C x y) z = c x $ c y z
+        c Id x = x
+        c x Id = x
+        c P1 (P x _) = x
+        c P2 (P _ x) = x
+        c (P x y) z = P (c x z) $ c y z
+        c Ev (P (L x) y) = c x $ P Id y
+        c (L x) y = L . c x $ P (c y P1) P2
+        c (V s) _ = V s
+        c x y = C x y
+eval (P x y) = P (eval x) $ eval y
+eval x = x
 
-parse :: [Char] -> [Char]
-parse = str . foldl1 app . parse' . tail . scanl (\ (_, i) x -> (x, i + fromEnum (x == '(') - fromEnum (x == ')'))) (' ', 0)
+parser :: Parser Expr
+parser = do
+    whiteSpace lexer
+    x <- expr
+    eof
+    return x
     where
-        str :: Expr -> [Char]
-        str (V x) = x
-        str (L x m) = "\\" ++ x ++ "." ++ str m
-        str (A (L x m) (V y)) = "(" ++ str (L x m) ++ ") " ++ y
-        str (A (L x m) n) = "(" ++ str (L x m) ++ ") (" ++ str n ++ ")"
-        str (A m (V x)) = str m ++ " " ++ x
-        str (A m n) = str m ++ " (" ++ str n ++ ")"
+        lexer :: TokenParser ()
+        lexer = makeTokenParser emptyDef {identStart = letter <|> char '_', identLetter = alphaNum <|> char '_'}
 
-        parse' :: [(Char, Int)] -> [Expr]
-        parse' (('(', i) : t) = (\ (x, y) -> foldl1 app (parse' x) : parse' y) $ span ((>= i) . snd) t
-        parse' (('\\', _) : t) = (\ (x, y) -> [L (fst <$> x) $ foldl1 app $ parse' (dropWhile ((/= '.') . fst) y)]) $ span (isAlphaNum . fst) $ dropWhile (not . isAlpha . fst) t
-        parse' ((x, _) : t) = if isAlpha x then (\ (y, z) -> V (x : map fst y) : parse' z) $ span (isAlphaNum . fst) t else parse' t
-        parse' _ = []
+        expr :: Parser Expr
+        expr = foldl1 ((C Ev .) . P) <$> many1 (parens lexer expr <|> V <$> identifier lexer <|> do
+            lexeme lexer $ char '\\'
+            s <- identifier lexer
+            lexeme lexer $ char '.'
+            L . lambda 0 s <$> expr)
+
+        lambda :: Int -> [Char] -> Expr -> Expr
+        lambda i s (V t) | s == t = C P2 $ iterate (C P1) Id !! i
+        lambda i s (C Ev (P x y)) = C Ev . P (lambda i s x) $ lambda i s y
+        lambda i s (L x) = L $ lambda (i + 1) s x
+        lambda _ _ x = x
+
+show' :: Expr -> [Char]
+show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . flip (:)) $ "" : map show [0 ..]) 0 x
+    where
+        show'' :: [[Char]] -> Int -> Expr -> [Char]
+        show'' l i (V s) = s
+        show'' l i (C Ev (P x (C Ev y))) = show'' l i x ++ '(' : show'' l i (C Ev y) ++ ")"
+        show'' l i (C Ev (P x (L y))) = show'' l i x ++ show'' l i (L y)
+        show'' l i (C Ev (P x y)) = show'' l i x ++ ' ' : show'' l i y
+        show'' l i (C _ x) = show'' l (i - 1) x
+        show'' l i (L x) = '\\' : l !! i ++ '.' : show'' l (i + 1) x
+        show'' l i x = l !! (i - 1)
+
+        free :: Expr -> [[Char]]
+        free (V s) = [s]
+        free (C Ev (P x y)) = free x `union` free y
+        free (L x) = free x
+        free _ = []
 
 main :: IO ()
 main = do
-    args <- getArgs
-    if null args then f else do
-        x <- readFile $ head args
-        putStrLn $ parse x
+    [arg] <- getArgs
+    if null args then i else either print (putStrLn . show' . eval) . parse parser "" =<< readFile arg
     where
-        f :: IO ()
-        f = do
+        i :: IO ()
+        i = do
             putStr "> "
-            x <- getLine
-            putStrLn $ parse x
+            either print (putStrLn . show' . eval) . parse parser "" =<< getLine
             f
