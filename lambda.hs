@@ -17,24 +17,21 @@ beta (C x y) = case (beta x, beta y) of
     (P x y, z) -> P (beta $ C x z) . beta $ C y z
     (Ev, P (L x) y) -> beta . C x $ P Id y
     (L x, y) -> L . beta . C x $ P (beta $ C y P1) P2
-    (V s, _) -> V s
     (x, y) -> C x y
 beta (P x y) = P (beta x) $ beta y
 beta (L x) = L $ beta x
 beta x = x
 
 eta :: Expr -> Expr
-eta (C (V s) P1) = C (V s) P1
 eta (C x y) = case eta y of
-    C y z -> eta $ C (eta $ C x y) z
+    C y z -> C (eta $ C x y) z
     y -> C (eta x) y
 eta (P x y) = case (eta x, eta y) of
     (C x P1, C y P1) -> C (eta $ P x y) P1
     (x, y) -> P x y
-eta (L x) = case eta $ eta x of
+eta (L x) = case eta x of
     C Ev (P (C x P1) P2) -> x
     x -> L x
-eta (V s) = C (V s) P1
 eta x = x
 
 parser :: Parser Expr
@@ -42,7 +39,7 @@ parser = do
     whiteSpace lexer
     x <- expr
     eof
-    return x
+    return $ lambda' 0 x
     where
         lexer :: TokenParser ()
         lexer = makeTokenParser emptyDef {identStart = letter <|> char '_', identLetter = alphaNum <|> char '_'}
@@ -59,6 +56,12 @@ parser = do
         lambda i s (L x) = L $ lambda (i + 1) s x
         lambda i s (V t) | s == t = C P2 $ iterate (C P1) Id !! i
         lambda _ _ x = x
+
+        lambda' :: Int -> Expr -> Expr
+        lambda' i (C Ev (P x y)) = C Ev . P (lambda' i x) $ lambda' i y
+        lambda' i (L x) = L $ lambda' (i + 1) x
+        lambda' i (V t) = C (V t) $ iterate (C P1) Id !! i
+        lambda' _ x = x
 
 show' :: Expr -> [Char]
 show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . flip (:)) $ "" : map show [1 ..]) 0 x
