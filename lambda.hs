@@ -7,23 +7,35 @@ import Text.Parsec.Token
 
 data Expr = C Expr Expr | Id | P Expr Expr | P1 | P2 | L Expr | Ev | V [Char]
 
-eval :: Expr -> Expr
-eval (L x) = L $ eval x
-eval (C x y) = c (eval x) $ eval y
-    where
-        c :: Expr -> Expr -> Expr
-        c (C x y) z = c x $ c y z
-        c Id x = x
-        c x Id = x
-        c P1 (P x _) = x
-        c P2 (P _ x) = x
-        c (P x y) z = P (c x z) $ c y z
-        c Ev (P (L x) y) = c x $ P Id y
-        c (L x) y = L . c x $ P (c y P1) P2
-        c (V s) _ = V s
-        c x y = C x y
-eval (P x y) = P (eval x) $ eval y
-eval x = x
+beta :: Expr -> Expr
+beta (C x y) = case (beta x, beta y) of
+    (C x y, z) -> beta . C x . beta $ C y z
+    (Id, x) -> x
+    (x, Id) -> x
+    (P1, P x _) -> x
+    (P2, P _ x) -> x
+    (P x y, z) -> P (beta $ C x z) . beta $ C y z
+    (Ev, P (L x) y) -> beta . C x $ P Id y
+    (L x, y) -> L . beta . C x $ P (beta $ C y P1) P2
+    (V s, _) -> V s
+    (x, y) -> C x y
+beta (P x y) = P (beta x) $ beta y
+beta (L x) = L $ beta x
+beta x = x
+
+eta :: Expr -> Expr
+eta (C (V s) P1) = C (V s) P1
+eta (C x y) = case eta y of
+    C y z -> eta $ C (eta $ C x y) z
+    y -> C (eta x) y
+eta (P x y) = case (eta x, eta y) of
+    (C x P1, C y P1) -> C (eta $ P x y) P1
+    (x, y) -> P x y
+eta (L x) = case eta $ eta x of
+    C Ev (P (C x P1) P2) -> x
+    x -> L x
+eta (V s) = C (V s) P1
+eta x = x
 
 parser :: Parser Expr
 parser = do
@@ -55,13 +67,14 @@ show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . fl
         show'' l i (C Ev (P x (C Ev y))) = show'' l i x ++ '(' : show'' l i (C Ev y) ++ ")"
         show'' l i (C Ev (P x (L y))) = show'' l i x ++ '(' : show'' l i (L y) ++ ")"
         show'' l i (C Ev (P x y)) = show'' l i x ++ ' ' : show'' l i y
+        show'' l i (C x _) = show'' l (i - 1) x
         show'' l i (L x) = '\\' : l !! i ++ '.' : show'' l (i + 1) x
         show'' l i (V s) = s
-        show'' l i (C _ x) = show'' l (i - 1) x
         show'' l i x = l !! (i - 1)
 
         free :: Expr -> [[Char]]
-        free (C Ev (P x y)) = free x `union` free y
+        free (C x y) = free x `union` free y
+        free (P x y) = free x `union` free y
         free (L x) = free x
         free (V s) = [s]
         free _ = []
@@ -69,10 +82,10 @@ show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . fl
 main :: IO ()
 main = do
     args <- getArgs
-    if null args then i else either print (putStrLn . show' . eval) . parse parser "" =<< readFile (head args)
+    if null args then i else either print (putStrLn . show' . eta . beta) . parse parser "" =<< readFile (head args)
     where
         i :: IO ()
         i = do
             putStr "> "
-            either print (putStrLn . show' . eval) . parse parser "" =<< getLine
+            either print (putStrLn . show' . eta . beta) . parse parser "" =<< getLine
             i
