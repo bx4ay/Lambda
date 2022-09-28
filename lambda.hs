@@ -42,7 +42,7 @@ expr = whiteSpace lexer >> expr' >>= (eof >>) . return . bind' 0
         lexer = makeTokenParser emptyDef {identStart = letter <|> char '_', identLetter = alphaNum <|> char '_'}
 
         expr' :: Parser Expr
-        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lexer expr' <|> V <$> identifier lexer <|> lexeme lexer (char '\\' >> identifier lexer >>= lexeme lexer . (char '.' >>) . (<$> expr') . (L .) . bind 0))
+        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lexer expr' <|> V <$> identifier lexer <|> (lexeme lexer (char '\\') >> identifier lexer >>= (lexeme lexer (char '.') >>) . (<$> expr') . (L .) . bind 0))
 
         bind :: Int -> [Char] -> Expr -> Expr
         bind i s (C Ev (P x y)) = C Ev . P (bind i s x) $ bind i s y
