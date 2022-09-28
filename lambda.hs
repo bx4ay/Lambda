@@ -39,7 +39,9 @@ expr :: Parser Expr
 expr = whiteSpace lexer >> expr' >>= (eof >>) . return . bind' 0
     where
         lexer :: TokenParser ()
-        lexer = makeTokenParser emptyDef {identStart = letter <|> char '_', identLetter = alphaNum <|> char '_'}
+        lexer = makeTokenParser emptyDef {
+            identStart = letter <|> char '_',
+            identLetter = alphaNum <|> char '_'}
 
         expr' :: Parser Expr
         expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lexer expr' <|> V <$> identifier lexer <|> (lexeme lexer (char '\\') >> many (identifier lexer) >>= (<$> (lexeme lexer (char '.') >> expr')) . flip (foldr $ (L .) . bind 0)))
@@ -81,9 +83,10 @@ showExpr x = showExpr' 0 x
 main :: IO ()
 main = do
     s <- getArgs
+    (b, s) <- return $ case s of
+        s : t | s == "-b" -> (True, t)
+        s -> (False, s)
     case s of
-        [] -> forever $ putStr "> " >> getLine >>= exec
-        s -> mapM_ (readFile >=> exec) s
-    where
-        exec :: [Char] -> IO ()
-        exec = either print (putStrLn . showExpr . eta . beta) . parse expr ""
+        [] -> forever . (putStr "> " >> getLine >>=)
+        s -> forM_ s . (readFile >=>)
+        $ either print (putStrLn . showExpr . if b then beta else eta . beta) . parse expr ""
