@@ -39,7 +39,7 @@ parser = do
     whiteSpace lexer
     x <- expr
     eof
-    return $ lambda' 0 x
+    return $ bind' 0 x
     where
         lexer :: TokenParser ()
         lexer = makeTokenParser emptyDef {identStart = letter <|> char '_', identLetter = alphaNum <|> char '_'}
@@ -49,19 +49,19 @@ parser = do
             lexeme lexer $ char '\\'
             s <- identifier lexer
             lexeme lexer $ char '.'
-            L . lambda 0 s <$> expr)
+            L . bind 0 s <$> expr)
 
-        lambda :: Int -> [Char] -> Expr -> Expr
-        lambda i s (C Ev (P x y)) = C Ev . P (lambda i s x) $ lambda i s y
-        lambda i s (L x) = L $ lambda (i + 1) s x
-        lambda i s (V t) | s == t = C P2 $ iterate (C P1) Id !! i
-        lambda _ _ x = x
+        bind :: Int -> [Char] -> Expr -> Expr
+        bind i s (C Ev (P x y)) = C Ev . P (bind i s x) $ bind i s y
+        bind i s (L x) = L $ bind (i + 1) s x
+        bind i s (V t) | s == t = C P2 $ iterate (C P1) Id !! i
+        bind _ _ x = x
 
-        lambda' :: Int -> Expr -> Expr
-        lambda' i (C Ev (P x y)) = C Ev . P (lambda' i x) $ lambda' i y
-        lambda' i (L x) = L $ lambda' (i + 1) x
-        lambda' i (V t) = C (V t) $ iterate (C P1) Id !! i
-        lambda' _ x = x
+        bind' :: Int -> Expr -> Expr
+        bind' i (C Ev (P x y)) = C Ev . P (bind' i x) $ bind' i y
+        bind' i (L x) = L $ bind' (i + 1) x
+        bind' i (V t) = C (V t) $ iterate (C P1) Id !! i
+        bind' _ x = x
 
 show' :: Expr -> [Char]
 show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . flip (:)) $ "" : map show [1 ..]) 0 x
