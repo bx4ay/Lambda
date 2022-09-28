@@ -36,15 +36,15 @@ eta (L x) = case eta x of
 eta x = x
 
 expr :: Parser Expr
-expr = whiteSpace lexer >> expr' >>= (eof >>) . return . bind' 0
+expr = whiteSpace lex >> expr' >>= (eof >>) . return . bind' 0
     where
-        lexer :: TokenParser ()
-        lexer = makeTokenParser emptyDef {
+        lex :: TokenParser ()
+        lex = makeTokenParser emptyDef {
             identStart = letter <|> char '_',
             identLetter = alphaNum <|> char '_'}
 
         expr' :: Parser Expr
-        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lexer expr' <|> V <$> identifier lexer <|> (lexeme lexer (char '\\') >> many (identifier lexer) >>= (<$> (lexeme lexer (char '.') >> expr')) . flip (foldr $ (L .) . bind 0)))
+        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lex expr' <|> V <$> identifier lex <|> (lexeme lex (char '\\') >> many (identifier lex) >>= (<$> (lexeme lex (char '.') >> expr')) . flip (foldr $ (L .) . bind 0)))
 
         bind :: Int -> [Char] -> Expr -> Expr
         bind i s (C Ev (P x y)) = C Ev . P (bind i s x) $ bind i s y
@@ -82,11 +82,11 @@ showExpr x = showExpr' 0 x
 
 main :: IO ()
 main = do
-    s <- getArgs
-    (b, s) <- return $ case s of
-        s : t | s == "-b" -> (True, t)
-        s -> (False, s)
-    case s of
+    ss <- getArgs
+    (b, tt) <- return $ case ss of
+        s : ss | s == "-b" -> (True, ss)
+        ss -> (False, ss)
+    case tt of
         [] -> forever . (putStr "> " >> getLine >>=)
-        s -> forM_ s . (readFile >=>)
+        ss -> forM_ ss . (readFile >=>)
         $ either print (putStrLn . showExpr . if b then beta else eta . beta) . parse expr ""
