@@ -39,12 +39,16 @@ expr :: Parser Expr
 expr = whiteSpace lex >> expr' >>= (eof >>) . return . bind' 0
     where
         lex :: TokenParser ()
-        lex = makeTokenParser emptyDef {
-            identStart = letter <|> char '_',
-            identLetter = alphaNum <|> char '_'}
+        lex = makeTokenParser haskellStyle
 
         expr' :: Parser Expr
-        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lex expr' <|> V <$> identifier lex <|> (lexeme lex (char '\\') >> many (identifier lex) >>= (<$> (lexeme lex (char '.') >> expr')) . flip (foldr $ (L .) . bind 0)))
+        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lex expr' <|> fun <|> var)
+
+        fun :: Parser Expr
+        fun = lexeme lex (char '\\') >> many (identifier lex) >>= (<$> (lexeme lex (char '.') >> expr')) . flip (foldr $ (L .) . bind 0)
+
+        var :: Parser Expr
+        var = V <$> identifier lex
 
         bind :: Int -> [Char] -> Expr -> Expr
         bind i s (C Ev (P x y)) = C Ev . P (bind i s x) $ bind i s y
@@ -74,7 +78,8 @@ showExpr x = showExpr' 0 x
         name = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
 
         free :: Expr -> [[Char]]
-        free (C x y) = free x `union` free y
+        free (C Ev x) = free x
+        free (C x _) = free x
         free (P x y) = free x `union` free y
         free (L x) = free x
         free (V s) = [s]
@@ -83,10 +88,10 @@ showExpr x = showExpr' 0 x
 main :: IO ()
 main = do
     ss <- getArgs
-    (b, tt) <- return $ case ss of
-        s : ss | s == "-b" -> (True, ss)
-        ss -> (False, ss)
+    (red, tt) <- return $ case ss of
+        s : ss | s == "-b" -> (beta, ss)
+        ss -> (eta . beta, ss)
     case tt of
         [] -> forever . (putStr "> " >> getLine >>=)
         ss -> forM_ ss . (readFile >=>)
-        $ either print (putStrLn . showExpr . if b then beta else eta . beta) . parse expr ""
+        $ either print (putStrLn . showExpr . red) . parse expr ""
