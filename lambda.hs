@@ -87,11 +87,11 @@ showExpr x = showExpr' 0 x
 
 main :: IO ()
 main = do
-    ss <- getArgs
-    (red, tt) <- return $ case ss of
+    args <- getArgs
+    (red, args') <- return $ case args of
         s : ss | s == "-b" -> (beta, ss)
         ss -> (eta . beta, ss)
-    case tt of
+    case args' of
         [] -> forever . (putStr "> " >> getLine >>=)
         ss -> forM_ ss . (readFile >=>)
         $ either print (putStrLn . showExpr . red) . parse expr ""
