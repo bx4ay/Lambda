@@ -1,6 +1,7 @@
 import Control.Monad
 import Data.List
 import System.Environment
+import System.IO
 import Text.Parsec
 import Text.Parsec.Language
 import Text.Parsec.String
@@ -91,6 +92,7 @@ main = do
     (red, args') <- return $ case args of
         s : ss | s == "-b" -> (beta, ss)
         ss -> (eta . beta, ss)
+    hSetBuffering stdout NoBuffering
     case args' of
         [] -> forever . (putStr "> " >> getLine >>=)
         ss -> forM_ ss . (readFile >=>)
