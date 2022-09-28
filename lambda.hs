@@ -46,7 +46,7 @@ expr = whiteSpace lex >> expr' >>= (eof >>) . return . bind' 0
         expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lex expr' <|> fun <|> var)
 
         fun :: Parser Expr
-        fun = lexeme lex (char '\\') >> many (identifier lex) >>= (<$> (lexeme lex (char '.') >> expr')) . flip (foldr $ (L .) . bind 0)
+        fun = lexeme lex (char '\\') >> many (identifier lex <|> lexeme lex (string "_")) >>= (<$> (lexeme lex (char '.') >> expr')) . flip (foldr $ (L .) . bind 0)
 
         var :: Parser Expr
         var = V <$> identifier lex
