@@ -1,3 +1,4 @@
+import Control.Monad
 import Data.List
 import System.Environment
 import Text.Parsec
@@ -34,22 +35,14 @@ eta (L x) = case eta x of
     x -> L x
 eta x = x
 
-parser :: Parser Expr
-parser = do
-    whiteSpace lexer
-    x <- expr
-    eof
-    return $ bind' 0 x
+expr :: Parser Expr
+expr = whiteSpace lexer >> expr' >>= (eof >>) . return . bind' 0
     where
         lexer :: TokenParser ()
         lexer = makeTokenParser emptyDef {identStart = letter <|> char '_', identLetter = alphaNum <|> char '_'}
 
-        expr :: Parser Expr
-        expr = foldl1 ((C Ev .) . P) <$> many1 (parens lexer expr <|> V <$> identifier lexer <|> do
-            lexeme lexer $ char '\\'
-            s <- identifier lexer
-            lexeme lexer $ char '.'
-            L . bind 0 s <$> expr)
+        expr' :: Parser Expr
+        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lexer expr' <|> V <$> identifier lexer <|> lexeme lexer (char '\\' >> identifier lexer >>= lexeme lexer . (char '.' >>) . (<$> expr') . (L .) . bind 0))
 
         bind :: Int -> [Char] -> Expr -> Expr
         bind i s (C Ev (P x y)) = C Ev . P (bind i s x) $ bind i s y
@@ -63,17 +56,20 @@ parser = do
         bind' i (V t) = C (V t) $ iterate (C P1) Id !! i
         bind' _ x = x
 
-show' :: Expr -> [Char]
-show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . flip (:)) $ "" : map show [1 ..]) 0 x
+showExpr :: Expr -> [Char]
+showExpr x = showExpr' 0 x
     where
-        show'' :: [[Char]] -> Int -> Expr -> [Char]
-        show'' l i (C Ev (P x (C Ev y))) = show'' l i x ++ '(' : show'' l i (C Ev y) ++ ")"
-        show'' l i (C Ev (P x (L y))) = show'' l i x ++ '(' : show'' l i (L y) ++ ")"
-        show'' l i (C Ev (P x y)) = show'' l i x ++ ' ' : show'' l i y
-        show'' l i (C x _) = show'' l (i - 1) x
-        show'' l i (L x) = '\\' : l !! i ++ '.' : show'' l (i + 1) x
-        show'' l i (V s) = s
-        show'' l i x = l !! (i - 1)
+        showExpr' :: Int -> Expr -> [Char]
+        showExpr' i (C Ev (P x (C Ev y))) = showExpr' i x ++ '(' : showExpr' i (C Ev y) ++ ")"
+        showExpr' i (C Ev (P x (L y))) = showExpr' i x ++ '(' : showExpr' i (L y) ++ ")"
+        showExpr' i (C Ev (P x y)) = showExpr' i x ++ ' ' : showExpr' i y
+        showExpr' i (C x _) = showExpr' (i - 1) x
+        showExpr' i (L x) = '\\' : name !! i ++ '.' : showExpr' (i + 1) x
+        showExpr' i (V s) = s
+        showExpr' i _ = name !! (i - 1)
+
+        name :: [[Char]]
+        name = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
 
         free :: Expr -> [[Char]]
         free (C x y) = free x `union` free y
@@ -84,11 +80,10 @@ show' x = show'' (filter (`notElem` free x) . concatMap ((<$> ['a' .. 'z']) . fl
 
 main :: IO ()
 main = do
-    args <- getArgs
-    if null args then i else either print (putStrLn . show' . eta . beta) . parse parser "" =<< readFile (head args)
+    s <- getArgs
+    case s of
+        [] -> forever $ putStr "> " >> getLine >>= exec
+        s -> mapM_ (readFile >=> exec) s
     where
-        i :: IO ()
-        i = do
-            putStr "> "
-            either print (putStrLn . show' . eta . beta) . parse parser "" =<< getLine
-            i
+        exec :: [Char] -> IO ()
+        exec = either print (putStrLn . showExpr . eta . beta) . parse expr ""
