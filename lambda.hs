@@ -11,58 +11,58 @@ data Expr = C Expr Expr | Id | P Expr Expr | P1 | P2 | L Expr | Ev | V [Char]
 
 beta :: Expr -> Expr
 beta (C x y) = case (beta x, beta y) of
-    (C x y, z) -> beta . C x . beta $ C y z
-    (Id, x) -> x
-    (x, Id) -> x
-    (P1, P x _) -> x
-    (P2, P _ x) -> x
-    (P x y, z) -> P (beta $ C x z) . beta $ C y z
-    (Ev, P (L x) y) -> beta . C x $ P Id y
-    (L x, y) -> L . beta . C x $ P (beta $ C y P1) P2
-    (x, y) -> C x y
+        (C x y, z) -> beta . C x . beta $ C y z
+        (Id, x) -> x
+        (x, Id) -> x
+        (P1, P x _) -> x
+        (P2, P _ x) -> x
+        (P x y, z) -> P (beta $ C x z) . beta $ C y z
+        (Ev, P (L x) y) -> beta . C x $ P Id y
+        (L x, y) -> L . beta . C x $ P (beta $ C y P1) P2
+        (x, y) -> C x y
 beta (P x y) = P (beta x) $ beta y
 beta (L x) = L $ beta x
 beta x = x
 
 eta :: Expr -> Expr
 eta (C x y) = case eta y of
-    C y z -> C (eta $ C x y) z
-    y -> C (eta x) y
+        C y z -> C (eta $ C x y) z
+        y -> C (eta x) y
 eta (P x y) = case (eta x, eta y) of
-    (C x P1, C y P1) -> C (eta $ P x y) P1
-    (x, y) -> P x y
+        (C x P1, C y P1) -> C (eta $ P x y) P1
+        (x, y) -> P x y
 eta (L x) = case eta x of
-    C Ev (P (C x P1) P2) -> x
-    x -> L x
+        C Ev (P (C x P1) P2) -> x
+        x -> L x
 eta x = x
 
 expr :: Parser Expr
 expr = do
-    whiteSpace lex
-    x <- expr'
-    eof
-    return $ bind' 0 x
+        whiteSpace lex
+        x <- expr'
+        eof
+        return $ bind' 0 x
     where
         lex :: TokenParser ()
         lex = makeTokenParser haskellStyle
 
         expr' :: Parser Expr
         expr' = do
-            ss <- many1 (parens lex expr' <|> fun <|> var)
-            return $ foldl1 ((C Ev .) . P) ss
+                ss <- many1 (parens lex expr' <|> fun <|> var)
+                return $ foldl1 ((C Ev .) . P) ss
 
         fun :: Parser Expr
         fun = do
-            symbol lex "\\"
-            ss <- many (identifier lex <|> symbol lex "_")
-            dot lex
-            x <- expr'
-            return $ foldr ((L .) . bind 0) x ss
+                symbol lex "\\"
+                ss <- many (identifier lex <|> symbol lex "_")
+                dot lex
+                x <- expr'
+                return $ foldr ((L .) . bind 0) x ss
 
         var :: Parser Expr
         var = do
-            s <- identifier lex
-            return $ V s
+                s <- identifier lex
+                return $ V s
 
         bind :: Int -> [Char] -> Expr -> Expr
         bind i s (C Ev (P x y)) = C Ev . P (bind i s x) $ bind i s y
@@ -83,7 +83,8 @@ showExpr x = showExpr' 0 x
         showExpr' i (C Ev (P x (C Ev y))) = showExpr' i x ++ '(' : showExpr' i (C Ev y) ++ ")"
         showExpr' i (C Ev (P x (L y))) = showExpr' i x ++ '(' : showExpr' i (L y) ++ ")"
         showExpr' i (C Ev (P x y)) = showExpr' i x ++ ' ' : showExpr' i y
-        showExpr' i (C x _) = showExpr' (i - 1) x
+        showExpr' i (C x P1) = showExpr' (i - 1) x
+        showExpr' i (C _ x) = showExpr' (i - 1) x
         showExpr' i (L x) = '\\' : name !! i ++ '.' : showExpr' (i + 1) x
         showExpr' i (V s) = s
         showExpr' i _ = name !! (i - 1)
@@ -101,11 +102,11 @@ showExpr x = showExpr' 0 x
 
 main :: IO ()
 main = do
-    args <- getArgs
-    (red, args') <- return $ case args of
-        s : ss | s == "-b" -> (beta, ss)
-        ss -> (eta . beta, ss)
-    case args' of
-        [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
-        ss -> forM_ ss . (readFile >=>)
-        $ either print (putStrLn . showExpr . red) . parse expr ""
+        args <- getArgs
+        (red, args') <- return $ case args of
+                s : ss | s == "-b" -> (beta, ss)
+                ss -> (eta . beta, ss)
+        case args' of
+                [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
+                ss -> forM_ ss . (readFile >=>)
+            $ either print (putStrLn . showExpr . red) . parse expr ""
