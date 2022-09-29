@@ -76,23 +76,23 @@ expr = do
         bind' i (V t) = C (V t) $ iterate (C P1) Id !! i
         bind' _ x = x
 
-showExpr :: Expr -> [Char]
-showExpr x = showExpr' 0 x
+showE :: Expr -> [Char]
+showE x = showE' 0 x
     where
-        showExpr' :: Int -> Expr -> [Char]
-        showExpr' i (C Ev (P x (C Ev y))) = showExpr' i x ++ '(' : showExpr' i (C Ev y) ++ ")"
-        showExpr' i (C Ev (P x (L y))) = showExpr' i x ++ '(' : showExpr' i (L y) ++ ")"
-        showExpr' i (C Ev (P x y)) = showExpr' i x ++ ' ' : showExpr' i y
-        showExpr' i (C (V s) _) = s
-        showExpr' i (C x P1) = showExpr' (i - 1) x
-        showExpr' i (C _ x) = showExpr' (i - 1) x
-        showExpr' i (L x) = '\\' : showL i x
-        showExpr' i (V s) = s
-        showExpr' i _ = name !! (i - 1)
+        showE' :: Int -> Expr -> [Char]
+        showE' i (C Ev (P x (C Ev y))) = showE' i x ++ '(' : showE' i (C Ev y) ++ ")"
+        showE' i (C Ev (P x (L y))) = showE' i x ++ '(' : showE' i (L y) ++ ")"
+        showE' i (C Ev (P x y)) = showE' i x ++ ' ' : showE' i y
+        showE' i (C (V s) _) = s
+        showE' i (C x P1) = showE' (i - 1) x
+        showE' i (C _ x) = showE' (i - 1) x
+        showE' i (L x) = '\\' : showL i x
+        showE' i (V s) = s
+        showE' i _ = name !! (i - 1)
 
         showL :: Int -> Expr -> [Char]
         showL i (L x) = name !! i ++ ' ' : showL (i + 1) x
-        showL i x = name !! i ++ '.' : showExpr' (i + 1) x
+        showL i x = name !! i ++ '.' : showE' (i + 1) x
 
         name :: [[Char]]
         name = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
@@ -114,4 +114,4 @@ main = do
         case args' of
                 [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
                 ss -> forM_ ss . (readFile >=>)
-            $ either print (putStrLn . showExpr . red) . parse expr ""
+            $ either print (putStrLn . showE . red) . parse expr ""
