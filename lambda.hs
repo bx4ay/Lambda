@@ -85,9 +85,13 @@ showExpr x = showExpr' 0 x
         showExpr' i (C Ev (P x y)) = showExpr' i x ++ ' ' : showExpr' i y
         showExpr' i (C x P1) = showExpr' (i - 1) x
         showExpr' i (C _ x) = showExpr' (i - 1) x
-        showExpr' i (L x) = '\\' : name !! i ++ '.' : showExpr' (i + 1) x
+        showExpr' i (L x) = '\\' : showL i x
         showExpr' i (V s) = s
         showExpr' i _ = name !! (i - 1)
+
+        showL :: Int -> Expr -> [Char]
+        showL i (L x) = name !! i ++ ' ' : showL (i + 1) x
+        showL i x = name !! i ++ '.' : showExpr' (i + 1) x
 
         name :: [[Char]]
         name = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
