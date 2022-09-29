@@ -37,19 +37,32 @@ eta (L x) = case eta x of
 eta x = x
 
 expr :: Parser Expr
-expr = whiteSpace lex >> expr' >>= (eof >>) . return . bind' 0
+expr = do
+    whiteSpace lex
+    x <- expr'
+    eof
+    return $ bind' 0 x
     where
         lex :: TokenParser ()
         lex = makeTokenParser haskellStyle
 
         expr' :: Parser Expr
-        expr' = foldl1 ((C Ev .) . P) <$> many1 (parens lex expr' <|> fun <|> var)
+        expr' = do
+            ss <- many1 (parens lex expr' <|> fun <|> var)
+            return $ foldl1 ((C Ev .) . P) ss
 
         fun :: Parser Expr
-        fun = lexeme lex (char '\\') >> many (identifier lex <|> symbol lex "_") >>= (<$> (dot lex >> expr')) . flip (foldr $ (L .) . bind 0)
+        fun = do
+            symbol lex "\\"
+            ss <- many (identifier lex <|> symbol lex "_")
+            dot lex
+            x <- expr'
+            return $ foldr ((L .) . bind 0) x ss
 
         var :: Parser Expr
-        var = V <$> identifier lex
+        var = do
+            s <- identifier lex
+            return $ V s
 
         bind :: Int -> [Char] -> Expr -> Expr
         bind i s (C Ev (P x y)) = C Ev . P (bind i s x) $ bind i s y
@@ -92,8 +105,7 @@ main = do
     (red, args') <- return $ case args of
         s : ss | s == "-b" -> (beta, ss)
         ss -> (eta . beta, ss)
-    hSetBuffering stdout NoBuffering
     case args' of
-        [] -> forever . (putStr "> " >> getLine >>=)
+        [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
         ss -> forM_ ss . (readFile >=>)
         $ either print (putStrLn . showExpr . red) . parse expr ""
