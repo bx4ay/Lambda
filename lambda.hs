@@ -83,6 +83,7 @@ showExpr x = showExpr' 0 x
         showExpr' i (C Ev (P x (C Ev y))) = showExpr' i x ++ '(' : showExpr' i (C Ev y) ++ ")"
         showExpr' i (C Ev (P x (L y))) = showExpr' i x ++ '(' : showExpr' i (L y) ++ ")"
         showExpr' i (C Ev (P x y)) = showExpr' i x ++ ' ' : showExpr' i y
+        showExpr' i (C (V s) _) = s
         showExpr' i (C x P1) = showExpr' (i - 1) x
         showExpr' i (C _ x) = showExpr' (i - 1) x
         showExpr' i (L x) = '\\' : showL i x
