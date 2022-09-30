@@ -27,6 +27,6 @@ $ lambda -b filename
 ファイル内のラムダ式を評価します（β簡約のみ）。
 
 ## 参考文献
-[1] P-L Curien. (1986). Categorical combinators.
+[1] Curien, P-L. (1986). Categorical combinators.
 *Information and Control, 69* (1-3). 188-254.
 
