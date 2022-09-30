@@ -38,31 +38,31 @@ eta x = x
 
 parseE :: [Char] -> Either ParseError Expr
 parseE = parse (do
-        whiteSpace lex
+        whiteSpace lexer
         x <- expr
         eof
         return $ free 0 x
     ) ""
     where
-        lex :: TokenParser ()
-        lex = makeTokenParser haskellStyle
+        lexer :: TokenParser ()
+        lexer = makeTokenParser haskellStyle
 
         expr :: Parser Expr
         expr = do
-                xs <- many1 $ parens lex expr <|> fun <|> var
+                xs <- many1 $ parens lexer expr <|> fun <|> var
                 return $ foldl1 ((C Ev .) . P) xs
 
         fun :: Parser Expr
         fun = do
-                symbol lex "\\"
-                ss <- many $ identifier lex <|> symbol lex "_"
-                dot lex
+                symbol lexer "\\"
+                ss <- many $ identifier lexer <|> symbol lexer "_"
+                dot lexer
                 x <- expr
                 return $ foldr ((L .) . bind 0) x ss
 
         var :: Parser Expr
         var = do
-                s <- identifier lex
+                s <- identifier lexer
                 return $ V s
 
         bind :: Int -> [Char] -> Expr -> Expr
