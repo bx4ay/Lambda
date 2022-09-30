@@ -36,19 +36,20 @@ eta (L x) = case eta x of
         x -> L x
 eta x = x
 
-expr :: Parser Expr
-expr = do
+parseE :: [Char] -> Either ParseError Expr
+parseE = parse (do
         whiteSpace lex
-        x <- expr'
+        x <- expr
         eof
-        return $ bind' 0 x
+        return $ free 0 x
+    ) ""
     where
         lex :: TokenParser ()
         lex = makeTokenParser haskellStyle
 
-        expr' :: Parser Expr
-        expr' = do
-                ss <- many1 (parens lex expr' <|> fun <|> var)
+        expr :: Parser Expr
+        expr = do
+                ss <- many1 (parens lex expr <|> fun <|> var)
                 return $ foldl1 ((C Ev .) . P) ss
 
         fun :: Parser Expr
@@ -56,7 +57,7 @@ expr = do
                 symbol lex "\\"
                 ss <- many (identifier lex <|> symbol lex "_")
                 dot lex
-                x <- expr'
+                x <- expr
                 return $ foldr ((L .) . bind 0) x ss
 
         var :: Parser Expr
@@ -70,11 +71,11 @@ expr = do
         bind i s (V t) | s == t = C P2 $ iterate (C P1) Id !! i
         bind _ _ x = x
 
-        bind' :: Int -> Expr -> Expr
-        bind' i (C Ev (P x y)) = C Ev . P (bind' i x) $ bind' i y
-        bind' i (L x) = L $ bind' (i + 1) x
-        bind' i (V t) = C (V t) $ iterate (C P1) Id !! i
-        bind' _ x = x
+        free :: Int -> Expr -> Expr
+        free i (C Ev (P x y)) = C Ev . P (free i x) $ free i y
+        free i (L x) = L $ free (i + 1) x
+        free i (V t) = C (V t) $ iterate (C P1) Id !! i
+        free _ x = x
 
 showE :: Expr -> [Char]
 showE x = showE' 0 x
@@ -114,4 +115,4 @@ main = do
         case args' of
                 [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
                 ss -> forM_ ss . (readFile >=>)
-            $ either print (putStrLn . showE . red) . parse expr ""
+            $ either print (putStrLn . showE . red) . parseE
