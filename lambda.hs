@@ -109,10 +109,10 @@ showE x = showE' 0 x
 main :: IO ()
 main = do
         args <- getArgs
-        (red, args') <- return $ case args of
-                s : ss | s == "-b" -> (beta, ss)
-                ss -> (eta . beta, ss)
+        (b, args') <- return $ case args of
+                s : ss | s == "-b" -> (True, ss)
+                ss -> (False, ss)
         case args' of
                 [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
                 ss -> forM_ ss . (readFile >=>)
-            $ either print (putStrLn . showE . red) . parseE
+            $ either print (putStrLn . showE . (if b then id else eta) . beta) . parseE
