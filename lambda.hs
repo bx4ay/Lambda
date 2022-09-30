@@ -49,13 +49,13 @@ parseE = parse (do
 
         expr :: Parser Expr
         expr = do
-                xs <- many1 (parens lex expr <|> fun <|> var)
+                xs <- many1 $ parens lex expr <|> fun <|> var
                 return $ foldl1 ((C Ev .) . P) xs
 
         fun :: Parser Expr
         fun = do
                 symbol lex "\\"
-                ss <- many (identifier lex <|> symbol lex "_")
+                ss <- many $ identifier lex <|> symbol lex "_"
                 dot lex
                 x <- expr
                 return $ foldr ((L .) . bind 0) x ss
