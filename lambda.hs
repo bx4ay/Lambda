@@ -49,8 +49,8 @@ parseE = parse (do
 
         expr :: Parser Expr
         expr = do
-                ss <- many1 (parens lex expr <|> fun <|> var)
-                return $ foldl1 ((C Ev .) . P) ss
+                xs <- many1 (parens lex expr <|> fun <|> var)
+                return $ foldl1 ((C Ev .) . P) xs
 
         fun :: Parser Expr
         fun = do
