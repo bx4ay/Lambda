@@ -7,7 +7,7 @@
 ラムダ項`<term>`は以下の文法で定義されます（空白と括弧`(`…`)`は省略してあります）。
 
 ```text
-<term> ::= <ident> | "\" ( <ident> | "_" )* "." <term> | <term> <term>
+<term> ::= <ident> | "\" ( <ident> | "_" )+ "." <term> | <term> <term>
 ```
 
 識別子`<ident>`やコメントのスタイルはHaskellと同様です。
