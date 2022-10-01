@@ -56,7 +56,7 @@ parseT = parse (do
         fun :: [[Char]] -> Parser [Term]
         fun ss = do
                 symbol lexer "\\"
-                ts <- many $ identifier lexer <|> symbol lexer "_"
+                ts <- many1 $ identifier lexer <|> symbol lexer "_"
                 dot lexer
                 x <- expr $ reverse ts ++ ss
                 return $ foldr (const $ (: []) . L) x ts
