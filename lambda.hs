@@ -7,7 +7,7 @@ import Text.Parsec.Language
 import Text.Parsec.String
 import Text.Parsec.Token
 
-data Term = Ignore | Fst | Snd | Pair [Term] [Term] | App | Curry [Term] | Var [Char]
+data Term = Ignore | Fst | Snd | Pair [Term] [Term] | App | Curry [Term] | Free [Char]
 
 comp :: Term -> [Term] -> [Term]
 comp Ignore _ = [Ignore]
@@ -69,7 +69,7 @@ parseE = parse (do
         var :: [[Char]] -> Parser [Term]
         var ss = do
                 s <- identifier lexer
-                return $ maybe [Var s, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex s ss
+                return $ maybe [Free s, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex s ss
 
 showE :: [Term] -> [Char]
 showE x = showE' 0 x
@@ -79,22 +79,22 @@ showE x = showE' 0 x
         showE' i [App, Pair x [Curry y]] = showE' i x ++ '(' : showE' i [Curry y] ++ ")"
         showE' i [App, Pair x y] = showE' i x ++ ' ' : showE' i y
         showE' i [Curry x] = '\\' : showL i x
-        showE' i (Var s : _) = s
-        showE' i (Snd : x) = name !! (i - 1 - length x)
+        showE' i (Free s : _) = s
+        showE' i (Snd : x) = names !! (i - 1 - length x)
         showE' i x = showE' (i - 1) $ init x
 
         showL :: Int -> [Term] -> [Char]
-        showL i [Curry x] = name !! i ++ ' ' : showL (i + 1) x
-        showL i x = name !! i ++ '.' : showE' (i + 1) x
+        showL i [Curry x] = names !! i ++ ' ' : showL (i + 1) x
+        showL i x = names !! i ++ '.' : showE' (i + 1) x
 
-        name :: [[Char]]
-        name = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
+        names :: [[Char]]
+        names = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
 
         free :: [Term] -> [[Char]]
         free (App : x) = free x
         free (Pair x y : _) = free x `union` free y
         free (Curry x : _) = free x
-        free (Var s : _) = [s]
+        free (Free s : _) = [s]
         free _ = []
 
 main :: IO ()
