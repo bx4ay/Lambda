@@ -7,38 +7,43 @@ import Text.Parsec.Language
 import Text.Parsec.String
 import Text.Parsec.Token
 
-data Term = P1 | P2 | P [Term] [Term] | Ev | L [Term] | V [Char]
+data Term = U | F | S | P [Term] [Term] | A | L [Term] | V [Char]
 
 c :: Term -> [Term] -> [Term]
-c P1 [P x _] = x
-c P2 [P _ x] = x
+c U _ = [U]
+c F [P x _] = x
+c S [P _ x] = x
 c (P x y) z = [P (foldr c z x) $ foldr c z y]
-c Ev [P [L x] y] = foldr c [P [] y] x
-c (L x) y = [L $ foldr c [P (foldr c [P1] y) [P2]] x]
+c A [P [L x] y] = foldr c [P [] y] x
+c (L x) y = [L $ foldr c [P (foldr c [F] y) [S]] x]
 c x y = x : y
 
 eta :: [Term] -> [Term]
-eta = reverseT . (reverseT >=> eta')
+eta = reverseE . (reverseE >=> eta')
     where
         eta' :: Term -> [Term]
         eta' (P x y) = case (x >>= eta', y >>= eta') of
-                (P1 : x, P1 : y) -> P1 : eta' (P x y)
+                (U : x, U : y) -> [U, P x y]
+                (U : x, F : y) -> F : eta' (P (U : x) y)
+                (F : x, U : y) -> F : eta' (P x $ U : y)
+                (F : x, F : y) -> F : eta' (P x y)
                 (x, y) -> [P x y]
         eta' (L x) = case x >>= eta' of
-                [P (P1 : x) [P2], Ev] -> x
+                [P (U : x) [S], A] -> U : x
+                [P (F : x) [S], A] -> x
                 x -> [L x]
         eta' x = [x]
 
-        reverseT :: [Term] -> [Term]
-        reverseT = reverse . map reverseT'
+        reverseE :: [Term] -> [Term]
+        reverseE = reverse . map reverseT
         
-        reverseT' :: Term -> Term
-        reverseT' (P x y) = P (reverseT x) $ reverseT y
-        reverseT' (L x) = L $ reverseT x
-        reverseT' x = x
+        reverseT :: Term -> Term
+        reverseT (P x y) = P (reverseE x) $ reverseE y
+        reverseT (L x) = L $ reverseE x
+        reverseT x = x
 
-parseT :: [Char] -> Either ParseError [Term]
-parseT = parse (do
+parseE :: [Char] -> Either ParseError [Term]
+parseE = parse (do
         whiteSpace lexer
         x <- expr []
         eof
@@ -51,7 +56,7 @@ parseT = parse (do
         expr :: [[Char]] -> Parser [Term]
         expr ss = do
                 xs <- many1 $ parens lexer (expr ss) <|> fun ss <|> var ss
-                return $ foldl1 (\ x y -> c Ev [P x y]) xs
+                return $ foldl1 (\ x y -> c A [P x y]) xs
 
         fun :: [[Char]] -> Parser [Term]
         fun ss = do
@@ -64,29 +69,29 @@ parseT = parse (do
         var :: [[Char]] -> Parser [Term]
         var ss = do
                 s <- identifier lexer
-                return $ maybe (V s : map (const P1) ss) ((P2 :) . (`replicate` P1)) $ elemIndex s ss
+                return $ maybe [V s, U] ((S :) . (`replicate` F)) $ elemIndex s ss
 
-showT :: [Term] -> [Char]
-showT x = showT' 0 x
+showE :: [Term] -> [Char]
+showE x = showE' 0 x
     where
-        showT' :: Int -> [Term] -> [Char]
-        showT' i [Ev, P x (Ev : y)] = showT' i x ++ '(' : showT' i (Ev : y) ++ ")"
-        showT' i [Ev, P x [L y]] = showT' i x ++ '(' : showT' i [L y] ++ ")"
-        showT' i [Ev, P x y] = showT' i x ++ ' ' : showT' i y
-        showT' i [L x] = '\\' : showL i x
-        showT' i (V s : _) = s
-        showT' i (P2 : x) = name !! (i - 1 - length x)
-        showT' i x = showT' (i - 1) $ init x
+        showE' :: Int -> [Term] -> [Char]
+        showE' i [A, P x (A : y)] = showE' i x ++ '(' : showE' i (A : y) ++ ")"
+        showE' i [A, P x [L y]] = showE' i x ++ '(' : showE' i [L y] ++ ")"
+        showE' i [A, P x y] = showE' i x ++ ' ' : showE' i y
+        showE' i [L x] = '\\' : showL i x
+        showE' i (V s : _) = s
+        showE' i (S : x) = name !! (i - 1 - length x)
+        showE' i x = showE' (i - 1) $ init x
 
         showL :: Int -> [Term] -> [Char]
         showL i [L x] = name !! i ++ ' ' : showL (i + 1) x
-        showL i x = name !! i ++ '.' : showT' (i + 1) x
+        showL i x = name !! i ++ '.' : showE' (i + 1) x
 
         name :: [[Char]]
         name = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
 
         free :: [Term] -> [[Char]]
-        free (Ev : x) = free x
+        free (A : x) = free x
         free (P x y : _) = free x `union` free y
         free (L x : _) = free x
         free (V s : _) = [s]
@@ -101,4 +106,4 @@ main = do
         case args' of
                 [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
                 ss -> forM_ ss . (readFile >=>)
-            $ either print (putStrLn . showT . if b then id else eta) . parseT
+            $ either print (putStrLn . showE . if b then id else eta) . parseE
