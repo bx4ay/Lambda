@@ -101,7 +101,7 @@ main :: IO ()
 main = do
         args <- getArgs
         (b, args') <- return $ case args of
-                s : ss | s == "-b" -> (True, ss)
+                "-b" : ss -> (True, ss)
                 ss -> (False, ss)
         case args' of
                 [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
