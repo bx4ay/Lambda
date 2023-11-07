@@ -44,6 +44,7 @@ $ lambda
 > \x.f x
 f
 > 
+
 $ lambda -b
 > \x.f x
 \a.f a
