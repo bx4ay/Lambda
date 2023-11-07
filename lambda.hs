@@ -1,5 +1,6 @@
 import Control.Monad
-import Data.List
+import Data.List (elemIndex, union)
+import Data.Map (Map, (!?), empty, insert)
 import System.Environment
 import System.IO
 import Text.Parsec
@@ -19,91 +20,116 @@ comp (Curry x) y = [Curry $ foldr comp [Pair (foldr comp [Fst] y) [Snd]] x]
 comp x y = x : y
 
 eta :: [Term] -> [Term]
-eta = opposite . (opposite >=> eta')
-    where
-        eta' :: Term -> [Term]
-        eta' (Pair x y) = case (x >>= eta', y >>= eta') of
-                (Ignore : x, Ignore : y) -> [Ignore, Pair x y]
-                (Ignore : x, Fst : y) -> Fst : eta' (Pair (Ignore : x) y)
-                (Fst : x, Ignore : y) -> Fst : eta' (Pair x $ Ignore : y)
-                (Fst : x, Fst : y) -> Fst : eta' (Pair x y)
-                (x, y) -> [Pair x y]
-        eta' (Curry x) = case x >>= eta' of
-                [Pair (Ignore : x) [Snd], App] -> Ignore : x
-                [Pair (Fst : x) [Snd], App] -> x
-                x -> [Curry x]
-        eta' x = [x]
+eta = opposite . (opposite >=> eta') where
+    eta' :: Term -> [Term]
+    eta' (Pair x y) = case (x >>= eta', y >>= eta') of
+        (Ignore : x, Ignore : y) -> [Ignore, Pair x y]
+        (Ignore : x, Fst : y) -> Fst : eta' (Pair (Ignore : x) y)
+        (Fst : x, Ignore : y) -> Fst : eta' (Pair x $ Ignore : y)
+        (Fst : x, Fst : y) -> Fst : eta' (Pair x y)
+        (x, y) -> [Pair x y]
+    eta' (Curry x) = case x >>= eta' of
+        [Pair (Ignore : x) [Snd], App] -> Ignore : x
+        [Pair (Fst : x) [Snd], App] -> x
+        x -> [Curry x]
+    eta' x = [x]
 
-        opposite :: [Term] -> [Term]
-        opposite = reverse . map inverse
-        
-        inverse :: Term -> Term
-        inverse (Pair x y) = Pair (opposite x) $ opposite y
-        inverse (Curry x) = Curry $ opposite x
-        inverse x = x
+    opposite :: [Term] -> [Term]
+    opposite = reverse . map inverse
 
-parseE :: [Char] -> Either ParseError [Term]
-parseE = parse (do
+    inverse :: Term -> Term
+    inverse (Pair x y) = Pair (opposite x) $ opposite y
+    inverse (Curry x) = Curry $ opposite x
+    inverse x = x
+
+parseE :: Map [Char] [Term] -> [Char] -> Either ParseError (Map [Char] [Term], Maybe [Term])
+parseE defs = parse (try (def defs) <|> nodef defs) "" where
+    lexer :: TokenParser ()
+    lexer = makeTokenParser haskellStyle
+
+    ident :: Parsec [Char] () Char -> Parsec [Char] () [Char]
+    ident lu = do
+        c <- lu
+        cs <- many $ alphaNum <|> oneOf "_'"
+        spaces
+        return $ c : cs
+
+    def :: Map [Char] [Term] -> Parser (Map [Char] [Term], Maybe [Term])
+    def defs = do
         whiteSpace lexer
-        x <- expr []
+        s <- ident upper
+        symbol lexer "="
+        xs <- expr defs []
         eof
-        return x
-    ) ""
-    where
-        lexer :: TokenParser ()
-        lexer = makeTokenParser haskellStyle
+        return (insert s xs defs, Nothing)
 
-        expr :: [[Char]] -> Parser [Term]
-        expr ss = do
-                xs <- many1 $ parens lexer (expr ss) <|> fun ss <|> var ss
-                return $ foldl1 (\ x y -> comp App [Pair x y]) xs
+    nodef :: Map [Char] [Term] -> Parser (Map [Char] [Term], Maybe [Term])
+    nodef defs = do
+        whiteSpace lexer
+        xs <- expr defs []
+        eof
+        return (defs, Just xs)
 
-        fun :: [[Char]] -> Parser [Term]
-        fun ss = do
-                symbol lexer "\\"
-                ts <- many1 $ identifier lexer <|> symbol lexer "_"
-                dot lexer
-                x <- expr $ reverse ts ++ ss
-                return $ foldr (const $ (: []) . Curry) x ts
+    expr :: Map [Char] [Term] -> [[Char]] -> Parser [Term]
+    expr defs ss = do
+        xs <- many1 $ parens lexer (expr defs ss) <|> fun defs ss <|> var ss <|> alias defs ss
+        return $ foldl1 (\ x y -> comp App [Pair x y]) xs
 
-        var :: [[Char]] -> Parser [Term]
-        var ss = do
-                s <- identifier lexer
-                return $ maybe [Free s, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex s ss
+    fun :: Map [Char] [Term] -> [[Char]] -> Parser [Term]
+    fun defs ss = do
+        symbol lexer "\\"
+        ts <- many1 $ ident lower <|> symbol lexer "_"
+        dot lexer
+        x <- expr defs $ reverse ts ++ ss
+        return $ foldr (const $ (: []) . Curry) x ts
+
+    var :: [[Char]] -> Parser [Term]
+    var ss = do
+        s <- ident lower
+        return $ maybe [Free s, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex s ss
+
+    alias :: Map [Char] [Term] -> [[Char]] -> Parser [Term]
+    alias defs ss = do
+        s <- ident upper
+        maybe (errorWithoutStackTrace $ s ++ "is undefined") return $ defs !? s
 
 showE :: [Term] -> [Char]
-showE x = showE' 0 x
-    where
-        showE' :: Int -> [Term] -> [Char]
-        showE' i [App, Pair x (App : y)] = showE' i x ++ '(' : showE' i (App : y) ++ ")"
-        showE' i [App, Pair x [Curry y]] = showE' i x ++ '(' : showE' i [Curry y] ++ ")"
-        showE' i [App, Pair x y] = showE' i x ++ ' ' : showE' i y
-        showE' i [Curry x] = '\\' : showL i x
-        showE' i (Free s : _) = s
-        showE' i (Snd : x) = names !! (i - 1 - length x)
-        showE' i x = showE' (i - 1) $ init x
+showE x = showE' 0 x where
+    showE' :: Int -> [Term] -> [Char]
+    showE' i [App, Pair x (App : y)] = showE' i x ++ '(' : showE' i (App : y) ++ ")"
+    showE' i [App, Pair x [Curry y]] = showE' i x ++ '(' : showE' i [Curry y] ++ ")"
+    showE' i [App, Pair x y] = showE' i x ++ ' ' : showE' i y
+    showE' i [Curry x] = '\\' : showL i x
+    showE' i (Free s : _) = s
+    showE' i (Snd : x) = names !! (i - 1 - length x)
+    showE' i x = showE' (i - 1) $ init x
 
-        showL :: Int -> [Term] -> [Char]
-        showL i [Curry x] = names !! i ++ ' ' : showL (i + 1) x
-        showL i x = names !! i ++ '.' : showE' (i + 1) x
+    showL :: Int -> [Term] -> [Char]
+    showL i [Curry x] = names !! i ++ ' ' : showL (i + 1) x
+    showL i x = names !! i ++ '.' : showE' (i + 1) x
 
-        names :: [[Char]]
-        names = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
+    names :: [[Char]]
+    names = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
 
-        free :: [Term] -> [[Char]]
-        free (App : x) = free x
-        free (Pair x y : _) = free x `union` free y
-        free (Curry x : _) = free x
-        free (Free s : _) = [s]
-        free _ = []
+    free :: [Term] -> [[Char]]
+    free (App : x) = free x
+    free (Pair x y : _) = free x `union` free y
+    free (Curry x : _) = free x
+    free (Free s : _) = [s]
+    free _ = []
 
 main :: IO ()
 main = do
-        args <- getArgs
-        (b, args') <- return $ case args of
-                "-b" : ss -> (True, ss)
-                ss -> (False, ss)
-        case args' of
-                [] -> forever . (putStr "> " >> hFlush stdout >> getLine >>=)
-                ss -> forM_ ss . (readFile >=>)
-            $ either print (putStrLn . showE . if b then id else eta) . parseE
+    args <- getArgs
+    f (args == ["-b"]) empty where
+    f :: Bool -> Map [Char] [Term] -> IO ()
+    f b defs = do
+        putStr "> "
+        hFlush stdout
+        s <- getLine
+        either print (uncurry $ g b) $ parseE defs s
+    g :: Bool -> Map [Char] [Term] -> Maybe [Term] -> IO ()
+    g b defs Nothing = f b defs
+    g b defs (Just x) = do
+        putStrLn $ showE $ if b then x else eta x
+        f b defs
