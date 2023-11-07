@@ -21,6 +21,7 @@ comp x y = x : y
 
 eta :: [Term] -> [Term]
 eta = opposite . (opposite >=> eta') where
+
     eta' :: Term -> [Term]
     eta' (Pair x y) = case (x >>= eta', y >>= eta') of
         (Ignore : x, Ignore : y) -> [Ignore, Pair x y]
@@ -44,6 +45,7 @@ eta = opposite . (opposite >=> eta') where
 
 parseE :: Map [Char] [Term] -> [Char] -> Either ParseError (Map [Char] [Term], Maybe [Term])
 parseE defs = parse (try (def defs) <|> nodef defs) "" where
+
     lexer :: TokenParser ()
     lexer = makeTokenParser haskellStyle
 
@@ -59,42 +61,43 @@ parseE defs = parse (try (def defs) <|> nodef defs) "" where
         whiteSpace lexer
         s <- ident upper
         symbol lexer "="
-        xs <- expr defs []
+        x <- expr defs []
         eof
-        return (insert s xs defs, Nothing)
+        return (insert s x defs, Nothing)
 
     nodef :: Map [Char] [Term] -> Parser (Map [Char] [Term], Maybe [Term])
     nodef defs = do
         whiteSpace lexer
-        xs <- expr defs []
+        x <- expr defs []
         eof
-        return (defs, Just xs)
+        return (defs, Just x)
 
     expr :: Map [Char] [Term] -> [[Char]] -> Parser [Term]
-    expr defs ss = do
-        xs <- many1 $ parens lexer (expr defs ss) <|> fun defs ss <|> var ss <|> alias defs ss
+    expr defs ids = do
+        xs <- many1 $ parens lexer (expr defs ids) <|> fun defs ids <|> var ids <|> alias defs
         return $ foldl1 (\ x y -> comp App [Pair x y]) xs
 
     fun :: Map [Char] [Term] -> [[Char]] -> Parser [Term]
-    fun defs ss = do
+    fun defs ids = do
         symbol lexer "\\"
         ts <- many1 $ ident lower <|> symbol lexer "_"
         dot lexer
-        x <- expr defs $ reverse ts ++ ss
+        x <- expr defs $ reverse ts ++ ids
         return $ foldr (const $ (: []) . Curry) x ts
 
     var :: [[Char]] -> Parser [Term]
-    var ss = do
+    var ids = do
         s <- ident lower
-        return $ maybe [Free s, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex s ss
+        return $ maybe [Free s, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex s ids
 
-    alias :: Map [Char] [Term] -> [[Char]] -> Parser [Term]
-    alias defs ss = do
+    alias :: Map [Char] [Term] -> Parser [Term]
+    alias defs = do
         s <- ident upper
         maybe (errorWithoutStackTrace $ s ++ "is undefined") return $ defs !? s
 
 showE :: [Term] -> [Char]
 showE x = showE' 0 x where
+
     showE' :: Int -> [Term] -> [Char]
     showE' i [App, Pair x (App : y)] = showE' i x ++ '(' : showE' i (App : y) ++ ")"
     showE' i [App, Pair x [Curry y]] = showE' i x ++ '(' : showE' i [Curry y] ++ ")"
@@ -122,12 +125,14 @@ main :: IO ()
 main = do
     args <- getArgs
     f (args == ["-b"]) empty where
+
     f :: Bool -> Map [Char] [Term] -> IO ()
     f b defs = do
         putStr "> "
         hFlush stdout
         s <- getLine
         either print (uncurry $ g b) $ parseE defs s
+
     g :: Bool -> Map [Char] [Term] -> Maybe [Term] -> IO ()
     g b defs Nothing = f b defs
     g b defs (Just x) = do
