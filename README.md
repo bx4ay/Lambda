@@ -18,7 +18,7 @@
 ラムダ式の評価を対話方式で行います。
 
 ```sh
-$ lambda
+$ runghc lambda.hs
 > (\x y z.x z(y z))(\x y.x)(\x y.x)
 \a.a
 > 
@@ -28,7 +28,7 @@ $ lambda
 名前は大文字アルファベットから始まります。
 
 ```sh
-$ lambda
+$ runghc lambda.hs
 > S = \x y z.x z(y z)
 > K = \x y.x
 > I = S K K
@@ -40,12 +40,12 @@ $ lambda
 `-b`オプションをつけた場合、β簡約のみを行います。
 
 ```sh
-$ lambda
+$ runghc lambda.hs
 > \x.f x
 f
 > 
 
-$ lambda -b
+$ runghc lambda.hs -b
 > \x.f x
 \a.f a
 > 
