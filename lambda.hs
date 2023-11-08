@@ -59,11 +59,11 @@ parseE defs = parse (try (def defs) <|> nodef defs) "" where
     def :: Map [Char] [Term] -> Parser (Map [Char] [Term], Maybe [Term])
     def defs = do
         whiteSpace lexer
-        id <- ident upper
+        s <- ident upper
         symbol lexer "="
         x <- expr defs []
         eof
-        return (insert id x defs, Nothing)
+        return (insert s x defs, Nothing)
 
     nodef :: Map [Char] [Term] -> Parser (Map [Char] [Term], Maybe [Term])
     nodef defs = do
@@ -80,20 +80,20 @@ parseE defs = parse (try (def defs) <|> nodef defs) "" where
     fun :: Map [Char] [Term] -> [[Char]] -> Parser [Term]
     fun defs ids = do
         symbol lexer "\\"
-        ids' <- many1 $ ident lower <|> symbol lexer "_"
+        ss <- many1 $ ident lower <|> symbol lexer "_"
         dot lexer
-        x <- expr defs $ reverse ids' ++ ids
-        return $ foldr (const $ (: []) . Curry) x ids'
+        x <- expr defs $ reverse ss ++ ids
+        return $ foldr (const $ (: []) . Curry) x ss
 
     var :: [[Char]] -> Parser [Term]
     var ids = do
-        id <- ident lower
-        return $ maybe [Free id, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex id ids
+        s <- ident lower
+        return $ maybe [Free s, Ignore] ((Snd :) . (`replicate` Fst)) $ elemIndex s ids
 
     alias :: Map [Char] [Term] -> Parser [Term]
     alias defs = do
-        id <- ident upper
-        maybe (errorWithoutStackTrace $ id ++ "is undefined") return $ defs !? id
+        s <- ident upper
+        maybe (errorWithoutStackTrace $ s ++ "is undefined") return $ defs !? s
 
 showE :: [Term] -> [Char]
 showE x = showE' 0 x where
