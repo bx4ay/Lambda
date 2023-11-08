@@ -92,8 +92,8 @@ parseE defs = parse (try (def defs) <|> nodef defs) "" where
 
     alias :: Map [Char] [Term] -> Parser [Term]
     alias defs = do
-        id' <- ident upper
-        maybe (errorWithoutStackTrace $ id' ++ "is undefined") return $ defs !? id'
+        id <- ident upper
+        maybe (errorWithoutStackTrace $ id ++ "is undefined") return $ defs !? id
 
 showE :: [Term] -> [Char]
 showE x = showE' 0 x where
