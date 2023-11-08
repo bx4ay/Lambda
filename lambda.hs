@@ -43,8 +43,8 @@ eta = opposite . (opposite >=> eta') where
     inverse (Curry x) = Curry $ opposite x
     inverse x = x
 
-parseE :: Map [Char] [Term] -> [Char] -> Either ParseError (Map [Char] [Term], Maybe [Term])
-parseE defs = parse (try (def defs) <|> nodef defs) "" where
+parseExpr :: Map [Char] [Term] -> [Char] -> Either ParseError (Map [Char] [Term], Maybe [Term])
+parseExpr defs = parse (try (def defs) <|> nodef defs) "" where
 
     lexer :: TokenParser ()
     lexer = makeTokenParser haskellStyle
@@ -95,24 +95,20 @@ parseE defs = parse (try (def defs) <|> nodef defs) "" where
         s <- ident upper
         maybe (errorWithoutStackTrace $ s ++ "is undefined") return $ defs !? s
 
-showE :: [Term] -> [Char]
-showE x = showE' 0 x where
+showExpr :: [Term] -> [Char]
+showExpr x = showExpr' 0 x where
 
-    showE' :: Int -> [Term] -> [Char]
-    showE' i [App, Pair x (App : y)] = showE' i x ++ '(' : showE' i (App : y) ++ ")"
-    showE' i [App, Pair x [Curry y]] = showE' i x ++ '(' : showE' i [Curry y] ++ ")"
-    showE' i [App, Pair x y] = showE' i x ++ ' ' : showE' i y
-    showE' i [Curry x] = '\\' : showL i x
-    showE' i (Free s : _) = s
-    showE' i (Snd : x) = names !! (i - 1 - length x)
-    showE' i x = showE' (i - 1) $ init x
+    showExpr' :: Int -> [Term] -> [Char]
+    showExpr' i [App, Pair x (App : y)] = showExpr' i x ++ "(" ++ showExpr' i (App : y) ++ ")"
+    showExpr' i [App, Pair x [Curry y]] = showExpr' i x ++ "(" ++ showExpr' i [Curry y] ++ ")"
+    showExpr' i [App, Pair x y] = showExpr' i x ++ " " ++ showExpr' i y
+    showExpr' i [Curry x] = "\\" ++ ids !! i ++ "." ++ showExpr' (i + 1) x
+    showExpr' i (Free s : _) = s
+    showExpr' i (Snd : x) = ids !! (i - 1 - length x)
+    showExpr' i x = showExpr' (i - 1) $ init x
 
-    showL :: Int -> [Term] -> [Char]
-    showL i [Curry x] = names !! i ++ ' ' : showL (i + 1) x
-    showL i x = names !! i ++ '.' : showE' (i + 1) x
-
-    names :: [[Char]]
-    names = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
+    ids :: [[Char]]
+    ids = "" : map show [1 ..] >>= filter (`notElem` free x) . (<$> ['a' .. 'z']) . flip (:)
 
     free :: [Term] -> [[Char]]
     free (App : x) = free x
@@ -131,10 +127,10 @@ main = do
         putStr "> "
         hFlush stdout
         s <- getLine
-        either print (uncurry $ g b) $ parseE defs s
+        either print (uncurry $ g b) $ parseExpr defs s
 
     g :: Bool -> Map [Char] [Term] -> Maybe [Term] -> IO ()
     g b defs Nothing = f b defs
     g b defs (Just x) = do
-        putStrLn $ showE $ if b then x else eta x
+        putStrLn $ showExpr $ if b then x else eta x
         f b defs
