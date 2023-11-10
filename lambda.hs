@@ -36,12 +36,12 @@ eta = opposite . (opposite >=> eta') where
     eta' x = [x]
 
     opposite :: [Term] -> [Term]
-    opposite = reverse . map inverse
+    opposite = reverse . map opposite'
 
-    inverse :: Term -> Term
-    inverse (Pair x y) = Pair (opposite x) $ opposite y
-    inverse (Curry x) = Curry $ opposite x
-    inverse x = x
+    opposite' :: Term -> Term
+    opposite' (Pair x y) = Pair (opposite x) $ opposite y
+    opposite' (Curry x) = Curry $ opposite x
+    opposite' x = x
 
 parseExpr :: Map [Char] [Term] -> [Char] -> Either ParseError (Map [Char] [Term], Maybe [Term])
 parseExpr defs = parse (try (def defs) <|> nodef defs) "" where
@@ -127,7 +127,7 @@ main = do
         putStr "> "
         hFlush stdout
         s <- getLine
-        either print (uncurry $ g b) $ parseExpr defs s
+        either (errorWithoutStackTrace . show) (uncurry $ g b) $ parseExpr defs s
 
     g :: Bool -> Map [Char] [Term] -> Maybe [Term] -> IO ()
     g b defs Nothing = f b defs
