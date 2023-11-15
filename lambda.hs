@@ -99,8 +99,8 @@ showExpr :: [Term] -> [Char]
 showExpr x = showExpr' 0 x where
 
     showExpr' :: Int -> [Term] -> [Char]
-    showExpr' i [App, Pair x (App : y)] = showExpr' i x ++ "(" ++ showExpr' i (App : y) ++ ")"
-    showExpr' i [App, Pair x [Curry y]] = showExpr' i x ++ "(" ++ showExpr' i [Curry y] ++ ")"
+    showExpr' i [App, Pair x (App : y)] = showExpr' i x ++ " (" ++ showExpr' i (App : y) ++ ")"
+    showExpr' i [App, Pair x [Curry y]] = showExpr' i x ++ " (" ++ showExpr' i [Curry y] ++ ")"
     showExpr' i [App, Pair x y] = showExpr' i x ++ " " ++ showExpr' i y
     showExpr' i [Curry x] = "\\" ++ ids !! i ++ "." ++ showExpr' (i + 1) x
     showExpr' i (Free s : _) = s
