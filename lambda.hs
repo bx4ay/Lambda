@@ -93,7 +93,7 @@ parseExpr defs = parse (try (def defs) <|> nodef defs) "" where
     alias :: Map [Char] [Term] -> Parser [Term]
     alias defs = do
         s <- ident upper
-        maybe (errorWithoutStackTrace $ s ++ "is undefined") return $ defs !? s
+        maybe (unexpected $ show s) return $ defs !? s
 
 showExpr :: [Term] -> [Char]
 showExpr x = showExpr' 0 x where
@@ -127,7 +127,7 @@ main = do
         putStr "> "
         hFlush stdout
         s <- getLine
-        either (errorWithoutStackTrace . show) (uncurry $ g b) $ parseExpr defs s
+        either ((>> f b defs) . print) (uncurry $ g b) $ parseExpr defs s
 
     g :: Bool -> Map [Char] [Term] -> Maybe [Term] -> IO ()
     g b defs Nothing = f b defs
